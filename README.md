@@ -20,13 +20,16 @@ Jericho Spreadsheet is an original, ultra-optimized spreadsheet application buil
 - **Cycle Detection**: Circular references (e.g. `A1 = =B1`, `B1 = =A1`) are detected via 3-color graph traversal and flagged as `#CIRCULAR!` without freezing or crashing.
 - **Error Codes**: Full Excel error model (`#DIV/0!`, `#VALUE!`, `#REF!`, `#NAME?`, `#NUM!`, `#N/A`, `#CIRCULAR!`).
 
-### 💼 Comprehensive Function Library
-- **Financial**: `PMT`, `PV`, `FV`, `NPV`, `NPER` (loan payments, DCF modeling, valuations).
-- **Lookup & Reference**: `VLOOKUP`, `XLOOKUP`, `INDEX`, `MATCH`, `ROW`, `COLUMN`.
-- **Math & Statistics**: `SUM`, `AVERAGE`, `MIN`, `MAX`, `COUNT`, `COUNTA`, `PRODUCT`, `ABS`, `SQRT`, `ROUND`, `ROUNDUP`, `ROUNDDOWN`, `FLOOR`, `CEILING`, `MOD`, `POWER`, `INT`, `MEDIAN`, `STDEV`, `STDEVP`, `SUMIF`, `COUNTIF`.
-- **Logic**: `IF`, `IFS`, `AND`, `OR`, `NOT`, `XOR`, `IFERROR`.
-- **Text**: `CONCATENATE`, `CONCAT`, `&`, `LEFT`, `RIGHT`, `MID`, `LEN`, `TRIM`, `UPPER`, `LOWER`, `PROPER`.
-- **Date & Time**: `TODAY`, `NOW`, `DATE`, `YEAR`, `MONTH`, `DAY`.
+### 💼 125+ Excel Function Library
+Jericho Spreadsheet features a high-performance formula evaluation engine supporting **125+ industry-standard Excel formulas** across all major functional disciplines:
+- **Financial (15 functions)**: `IRR` (Newton-Raphson solver), `NPV`, `PMT`, `PV`, `FV`, `RATE`, `NPER`, `EFFECT`, `NOMINAL`, `SLN`, `SYD`, `DDB`, `IPMT`, `PPMT`, `CUMIPMT`, `CUMPRINC`.
+- **Lookup & Reference (12 functions)**: `VLOOKUP`, `HLOOKUP`, `XLOOKUP`, `INDEX`, `MATCH`, `CHOOSE`, `SWITCH`, `ROWS`, `COLUMNS`, `ADDRESS`, `ROW`, `COLUMN`.
+- **Multi-Criteria & Aggregates (8 functions)**: `SUMIFS`, `COUNTIFS`, `AVERAGEIFS`, `MINIFS`, `MAXIFS`, `SUMIF`, `COUNTIF`, `AVERAGEIF`.
+- **Statistical (18 functions)**: `LARGE`, `SMALL`, `PERCENTILE`, `PERCENTILE.INC`, `QUARTILE`, `QUARTILE.INC`, `RANK`, `RANK.EQ`, `MODE`, `MODE.SNGL`, `VAR`, `VAR.S`, `VARP`, `VAR.P`, `STDEV`, `STDEV.S`, `STDEVP`, `STDEV.P`, `AVEDEV`, `MEDIAN`.
+- **Math & Trigonometry (37 functions)**: `LN`, `LOG`, `LOG10`, `EXP`, `POWER`, `SQRT`, `PI`, `E`, `SIGN`, `SIN`, `COS`, `TAN`, `ASIN`, `ACOS`, `ATAN`, `ATAN2`, `RADIANS`, `DEGREES`, `FACT`, `FACTDOUBLE`, `COMBIN`, `PERMUT`, `GCD`, `LCM`, `QUOTIENT`, `RAND`, `RANDBETWEEN`, `ROUND`, `ROUNDUP`, `ROUNDDOWN`, `TRUNC`, `FLOOR`, `CEILING`, `INT`, `EVEN`, `ODD`, `MOD`, `ABS`, `PRODUCT`.
+- **Logic & Information (17 functions)**: `IF`, `IFS`, `IFERROR`, `IFNA`, `AND`, `OR`, `NOT`, `XOR`, `ISBLANK`, `ISNUMBER`, `ISTEXT`, `ISNONTEXT`, `ISLOGICAL`, `ISERROR`, `ISNA`, `TYPE`, `N`, `T`.
+- **Text (20 functions)**: `TEXTJOIN`, `CONCAT`, `CONCATENATE`, `&`, `REPLACE`, `SUBSTITUTE`, `REPT`, `FIND`, `SEARCH`, `EXACT`, `VALUE`, `TEXT`, `CHAR`, `CODE`, `LEFT`, `RIGHT`, `MID`, `LEN`, `TRIM`, `UPPER`, `LOWER`, `PROPER`.
+- **Date & Time (15 functions)**: `TODAY`, `NOW`, `DATE`, `YEAR`, `MONTH`, `DAY`, `HOUR`, `MINUTE`, `SECOND`, `TIME`, `DAYS`, `WEEKDAY`, `EDATE`, `EOMONTH`, `DATEDIF`.
 
 ### 📂 Native Excel (.xlsx) & CSV Compatibility
 - **Import XLSX**: Open existing Microsoft Excel workbooks (`.xlsx`), reading multi-sheet tabs, formulas, strings, numbers, dates, and formatting using `calamine`.

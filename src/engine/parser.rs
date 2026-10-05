@@ -197,7 +197,7 @@ impl<'a> Lexer<'a> {
                 _ if c.is_ascii_alphabetic() || c == '_' || c == '$' => {
                     let mut ident = String::new();
                     while let Some(&ch) = self.chars.peek() {
-                        if ch.is_ascii_alphanumeric() || ch == '_' || ch == '$' {
+                        if ch.is_ascii_alphanumeric() || ch == '_' || ch == '$' || ch == '.' {
                             ident.push(ch);
                             self.chars.next();
                         } else {

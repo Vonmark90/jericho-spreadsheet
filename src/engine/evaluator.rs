@@ -161,9 +161,62 @@ impl<'a> Evaluator<'a> {
             }
         }
 
+        // Short-circuiting IFERROR
+        if upper == "IFERROR" {
+            if args.is_empty() {
+                return Err(CellError::Value);
+            }
+            let first_val = match self.eval_expr(&args[0]) {
+                Ok(v) => v,
+                Err(e) => {
+                    if e == CellError::Circular {
+                        return Err(e);
+                    }
+                    CellValue::Error(e)
+                }
+            };
+            if first_val.is_error() {
+                return if args.len() > 1 {
+                    self.eval_expr(&args[1])
+                } else {
+                    Ok(CellValue::Empty)
+                };
+            } else {
+                return Ok(first_val);
+            }
+        }
+
+        // Short-circuiting IFNA
+        if upper == "IFNA" {
+            if args.is_empty() {
+                return Err(CellError::Value);
+            }
+            let first_val = match self.eval_expr(&args[0]) {
+                Ok(v) => v,
+                Err(e) => {
+                    if e == CellError::Circular {
+                        return Err(e);
+                    }
+                    CellValue::Error(e)
+                }
+            };
+            if matches!(first_val, CellValue::Error(CellError::NA)) {
+                return if args.len() > 1 {
+                    self.eval_expr(&args[1])
+                } else {
+                    Ok(CellValue::Empty)
+                };
+            } else {
+                return Ok(first_val);
+            }
+        }
+
         // Table / Array Lookup functions
         if upper == "VLOOKUP" {
             return self.eval_vlookup(args);
+        }
+        if upper == "HLOOKUP" {
+            return self.eval_hlookup(args);
         }
         if upper == "INDEX" {
             return self.eval_index(args);
@@ -177,8 +230,41 @@ impl<'a> Evaluator<'a> {
         if upper == "SUMIF" {
             return self.eval_sumif(args);
         }
+        if upper == "SUMIFS" {
+            return self.eval_sumifs(args);
+        }
         if upper == "COUNTIF" {
             return self.eval_countif(args);
+        }
+        if upper == "COUNTIFS" {
+            return self.eval_countifs(args);
+        }
+        if upper == "AVERAGEIF" {
+            return self.eval_averageif(args);
+        }
+        if upper == "AVERAGEIFS" {
+            return self.eval_averageifs(args);
+        }
+        if upper == "MINIFS" {
+            return self.eval_minifs(args);
+        }
+        if upper == "MAXIFS" {
+            return self.eval_maxifs(args);
+        }
+        if upper == "ROWS" {
+            return self.eval_rows(args);
+        }
+        if upper == "COLUMNS" {
+            return self.eval_columns(args);
+        }
+        if upper == "CHOOSE" {
+            return self.eval_choose(args);
+        }
+        if upper == "SWITCH" {
+            return self.eval_switch(args);
+        }
+        if upper == "RANK" || upper == "RANK.EQ" {
+            return self.eval_rank(args);
         }
 
         // Flatten range arguments for standard functions like SUM, AVERAGE, MIN, etc.
@@ -199,7 +285,24 @@ impl<'a> Evaluator<'a> {
                     }
                 }
             } else {
-                let val = self.eval_expr(arg)?;
+                let val = match self.eval_expr(arg) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        if e == CellError::Circular {
+                            return Err(e);
+                        }
+                        if upper == "ISERROR"
+                            || upper == "ISERR"
+                            || upper == "ISNA"
+                            || upper == "IFERROR"
+                            || upper == "IFNA"
+                        {
+                            CellValue::Error(e)
+                        } else {
+                            return Err(e);
+                        }
+                    }
+                };
                 evaluated_args.push(val);
             }
         }
@@ -447,6 +550,410 @@ impl<'a> Evaluator<'a> {
         } else {
             Err(CellError::Value)
         }
+    }
+
+    fn extract_range_coords(&self, expr: &Expr) -> Result<Vec<CellCoord>, CellError> {
+        match expr {
+            Expr::RangeRef { start, end } => {
+                let min_r = start.row.min(end.row);
+                let max_r = start.row.max(end.row);
+                let min_c = start.col.min(end.col);
+                let max_c = start.col.max(end.col);
+                let mut coords = Vec::with_capacity((max_r - min_r + 1) * (max_c - min_c + 1));
+                for r in min_r..=max_r {
+                    for c in min_c..=max_c {
+                        coords.push(CellCoord::new(r, c));
+                    }
+                }
+                Ok(coords)
+            }
+            Expr::CellRef(coord) => Ok(vec![*coord]),
+            _ => Err(CellError::Value),
+        }
+    }
+
+    /// HLOOKUP(lookup_value, table_array, row_index, [range_lookup])
+    fn eval_hlookup(&self, args: &[Expr]) -> Result<CellValue, CellError> {
+        if args.len() < 3 {
+            return Err(CellError::Value);
+        }
+        let lookup_val = self.eval_expr(&args[0])?;
+        let row_index = self
+            .eval_expr(&args[2])?
+            .as_number()
+            .ok_or(CellError::Value)? as usize;
+        if row_index == 0 {
+            return Err(CellError::Value);
+        }
+
+        if let Expr::RangeRef { start, end } = &args[1] {
+            let min_r = start.row.min(end.row);
+            let max_r = start.row.max(end.row);
+            let min_c = start.col.min(end.col);
+            let max_c = start.col.max(end.col);
+
+            let target_r = min_r + row_index - 1;
+            if target_r > max_r {
+                return Err(CellError::Ref);
+            }
+
+            for c in min_c..=max_c {
+                let header_val = self.sheet.get_cell_value(CellCoord::new(min_r, c));
+                if values_equal(&lookup_val, &header_val) {
+                    return Ok(self.sheet.get_cell_value(CellCoord::new(target_r, c)));
+                }
+            }
+            Err(CellError::NA)
+        } else {
+            Err(CellError::Value)
+        }
+    }
+
+    /// SUMIFS(sum_range, criteria_range1, criteria1, [criteria_range2, criteria2]...)
+    fn eval_sumifs(&self, args: &[Expr]) -> Result<CellValue, CellError> {
+        if args.len() < 3 || args.len() % 2 == 0 {
+            return Err(CellError::Value);
+        }
+        let sum_coords = self.extract_range_coords(&args[0])?;
+        let num_criteria = (args.len() - 1) / 2;
+        let mut criteria_pairs = Vec::with_capacity(num_criteria);
+        for i in 0..num_criteria {
+            let r_coords = self.extract_range_coords(&args[1 + i * 2])?;
+            let crit_val = self.eval_expr(&args[2 + i * 2])?;
+            if r_coords.len() != sum_coords.len() {
+                return Err(CellError::Value);
+            }
+            criteria_pairs.push((r_coords, crit_val));
+        }
+
+        let mut total = 0.0;
+        for (idx, sum_coord) in sum_coords.iter().enumerate() {
+            let mut matches_all = true;
+            for (crit_coords, crit_val) in &criteria_pairs {
+                let check_val = self.sheet.get_cell_value(crit_coords[idx]);
+                if !matches_criteria(&check_val, crit_val) {
+                    matches_all = false;
+                    break;
+                }
+            }
+            if matches_all {
+                if let Some(n) = self.sheet.get_cell_value(*sum_coord).as_number() {
+                    total += n;
+                }
+            }
+        }
+        Ok(CellValue::Number(total))
+    }
+
+    /// COUNTIFS(criteria_range1, criteria1, [criteria_range2, criteria2]...)
+    fn eval_countifs(&self, args: &[Expr]) -> Result<CellValue, CellError> {
+        if args.len() < 2 || args.len() % 2 != 0 {
+            return Err(CellError::Value);
+        }
+        let num_criteria = args.len() / 2;
+        let first_coords = self.extract_range_coords(&args[0])?;
+        let mut criteria_pairs = Vec::with_capacity(num_criteria);
+        let first_crit = self.eval_expr(&args[1])?;
+        criteria_pairs.push((first_coords, first_crit));
+
+        for i in 1..num_criteria {
+            let r_coords = self.extract_range_coords(&args[i * 2])?;
+            let crit_val = self.eval_expr(&args[i * 2 + 1])?;
+            if r_coords.len() != criteria_pairs[0].0.len() {
+                return Err(CellError::Value);
+            }
+            criteria_pairs.push((r_coords, crit_val));
+        }
+
+        let mut count = 0;
+        let num_cells = criteria_pairs[0].0.len();
+        for idx in 0..num_cells {
+            let mut matches_all = true;
+            for (crit_coords, crit_val) in &criteria_pairs {
+                let check_val = self.sheet.get_cell_value(crit_coords[idx]);
+                if !matches_criteria(&check_val, crit_val) {
+                    matches_all = false;
+                    break;
+                }
+            }
+            if matches_all {
+                count += 1;
+            }
+        }
+        Ok(CellValue::Number(count as f64))
+    }
+
+    /// AVERAGEIF(range, criteria, [average_range])
+    fn eval_averageif(&self, args: &[Expr]) -> Result<CellValue, CellError> {
+        if args.len() < 2 {
+            return Err(CellError::Value);
+        }
+        let criteria = self.eval_expr(&args[1])?;
+        if let Expr::RangeRef { start, end } = &args[0] {
+            let min_r = start.row.min(end.row);
+            let max_r = start.row.max(end.row);
+            let min_c = start.col.min(end.col);
+            let max_c = start.col.max(end.col);
+
+            let avg_offset = if args.len() > 2 {
+                if let Expr::RangeRef { start: s_start, end: _ } = &args[2] {
+                    Some((s_start.row as isize - min_r as isize, s_start.col as isize - min_c as isize))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let mut total = 0.0;
+            let mut count = 0;
+            for r in min_r..=max_r {
+                for c in min_c..=max_c {
+                    let check_val = self.sheet.get_cell_value(CellCoord::new(r, c));
+                    if matches_criteria(&check_val, &criteria) {
+                        let avg_coord = if let Some((dr, dc)) = avg_offset {
+                            let sr = (r as isize + dr).max(0) as usize;
+                            let sc = (c as isize + dc).max(0) as usize;
+                            CellCoord::new(sr, sc)
+                        } else {
+                            CellCoord::new(r, c)
+                        };
+                        if let Some(n) = self.sheet.get_cell_value(avg_coord).as_number() {
+                            total += n;
+                            count += 1;
+                        }
+                    }
+                }
+            }
+            if count == 0 {
+                Err(CellError::Div0)
+            } else {
+                Ok(CellValue::Number(total / count as f64))
+            }
+        } else {
+            Err(CellError::Value)
+        }
+    }
+
+    /// AVERAGEIFS(avg_range, criteria_range1, criteria1, ...)
+    fn eval_averageifs(&self, args: &[Expr]) -> Result<CellValue, CellError> {
+        if args.len() < 3 || args.len() % 2 == 0 {
+            return Err(CellError::Value);
+        }
+        let avg_coords = self.extract_range_coords(&args[0])?;
+        let num_criteria = (args.len() - 1) / 2;
+        let mut criteria_pairs = Vec::with_capacity(num_criteria);
+        for i in 0..num_criteria {
+            let r_coords = self.extract_range_coords(&args[1 + i * 2])?;
+            let crit_val = self.eval_expr(&args[2 + i * 2])?;
+            if r_coords.len() != avg_coords.len() {
+                return Err(CellError::Value);
+            }
+            criteria_pairs.push((r_coords, crit_val));
+        }
+
+        let mut total = 0.0;
+        let mut count = 0;
+        for (idx, avg_coord) in avg_coords.iter().enumerate() {
+            let mut matches_all = true;
+            for (crit_coords, crit_val) in &criteria_pairs {
+                let check_val = self.sheet.get_cell_value(crit_coords[idx]);
+                if !matches_criteria(&check_val, crit_val) {
+                    matches_all = false;
+                    break;
+                }
+            }
+            if matches_all {
+                if let Some(n) = self.sheet.get_cell_value(*avg_coord).as_number() {
+                    total += n;
+                    count += 1;
+                }
+            }
+        }
+        if count == 0 {
+            Err(CellError::Div0)
+        } else {
+            Ok(CellValue::Number(total / count as f64))
+        }
+    }
+
+    /// MINIFS(min_range, criteria_range1, criteria1, ...)
+    fn eval_minifs(&self, args: &[Expr]) -> Result<CellValue, CellError> {
+        if args.len() < 3 || args.len() % 2 == 0 {
+            return Err(CellError::Value);
+        }
+        let min_coords = self.extract_range_coords(&args[0])?;
+        let num_criteria = (args.len() - 1) / 2;
+        let mut criteria_pairs = Vec::with_capacity(num_criteria);
+        for i in 0..num_criteria {
+            let r_coords = self.extract_range_coords(&args[1 + i * 2])?;
+            let crit_val = self.eval_expr(&args[2 + i * 2])?;
+            criteria_pairs.push((r_coords, crit_val));
+        }
+        let mut min_val: Option<f64> = None;
+        for (idx, coord) in min_coords.iter().enumerate() {
+            let mut matches_all = true;
+            for (crit_coords, crit_val) in &criteria_pairs {
+                let check_val = self.sheet.get_cell_value(crit_coords[idx]);
+                if !matches_criteria(&check_val, crit_val) {
+                    matches_all = false;
+                    break;
+                }
+            }
+            if matches_all {
+                if let Some(n) = self.sheet.get_cell_value(*coord).as_number() {
+                    min_val = Some(min_val.map_or(n, |m| m.min(n)));
+                }
+            }
+        }
+        Ok(CellValue::Number(min_val.unwrap_or(0.0)))
+    }
+
+    /// MAXIFS(max_range, criteria_range1, criteria1, ...)
+    fn eval_maxifs(&self, args: &[Expr]) -> Result<CellValue, CellError> {
+        if args.len() < 3 || args.len() % 2 == 0 {
+            return Err(CellError::Value);
+        }
+        let max_coords = self.extract_range_coords(&args[0])?;
+        let num_criteria = (args.len() - 1) / 2;
+        let mut criteria_pairs = Vec::with_capacity(num_criteria);
+        for i in 0..num_criteria {
+            let r_coords = self.extract_range_coords(&args[1 + i * 2])?;
+            let crit_val = self.eval_expr(&args[2 + i * 2])?;
+            criteria_pairs.push((r_coords, crit_val));
+        }
+        let mut max_val: Option<f64> = None;
+        for (idx, coord) in max_coords.iter().enumerate() {
+            let mut matches_all = true;
+            for (crit_coords, crit_val) in &criteria_pairs {
+                let check_val = self.sheet.get_cell_value(crit_coords[idx]);
+                if !matches_criteria(&check_val, crit_val) {
+                    matches_all = false;
+                    break;
+                }
+            }
+            if matches_all {
+                if let Some(n) = self.sheet.get_cell_value(*coord).as_number() {
+                    max_val = Some(max_val.map_or(n, |m| m.max(n)));
+                }
+            }
+        }
+        Ok(CellValue::Number(max_val.unwrap_or(0.0)))
+    }
+
+    /// ROWS(range)
+    fn eval_rows(&self, args: &[Expr]) -> Result<CellValue, CellError> {
+        if args.is_empty() {
+            return Err(CellError::Value);
+        }
+        match &args[0] {
+            Expr::RangeRef { start, end } => {
+                let min_r = start.row.min(end.row);
+                let max_r = start.row.max(end.row);
+                Ok(CellValue::Number((max_r - min_r + 1) as f64))
+            }
+            Expr::CellRef(_) => Ok(CellValue::Number(1.0)),
+            _ => Err(CellError::Value),
+        }
+    }
+
+    /// COLUMNS(range)
+    fn eval_columns(&self, args: &[Expr]) -> Result<CellValue, CellError> {
+        if args.is_empty() {
+            return Err(CellError::Value);
+        }
+        match &args[0] {
+            Expr::RangeRef { start, end } => {
+                let min_c = start.col.min(end.col);
+                let max_c = start.col.max(end.col);
+                Ok(CellValue::Number((max_c - min_c + 1) as f64))
+            }
+            Expr::CellRef(_) => Ok(CellValue::Number(1.0)),
+            _ => Err(CellError::Value),
+        }
+    }
+
+    /// CHOOSE(index, val1, val2, ...)
+    fn eval_choose(&self, args: &[Expr]) -> Result<CellValue, CellError> {
+        if args.len() < 2 {
+            return Err(CellError::Value);
+        }
+        let index = self.eval_expr(&args[0])?.as_number().ok_or(CellError::Value)? as usize;
+        if index == 0 || index >= args.len() {
+            return Err(CellError::Value);
+        }
+        self.eval_expr(&args[index])
+    }
+
+    /// SWITCH(expression, val1, result1, [val2, result2], ..., [default])
+    fn eval_switch(&self, args: &[Expr]) -> Result<CellValue, CellError> {
+        if args.len() < 3 {
+            return Err(CellError::Value);
+        }
+        let target = self.eval_expr(&args[0])?;
+        let rem = &args[1..];
+        let num_pairs = rem.len() / 2;
+        for i in 0..num_pairs {
+            let val = self.eval_expr(&rem[i * 2])?;
+            if values_equal(&target, &val) {
+                return self.eval_expr(&rem[i * 2 + 1]);
+            }
+        }
+        if rem.len() % 2 == 1 {
+            self.eval_expr(&rem[rem.len() - 1])
+        } else {
+            Err(CellError::NA)
+        }
+    }
+
+    /// RANK(number, ref, [order])
+    fn eval_rank(&self, args: &[Expr]) -> Result<CellValue, CellError> {
+        if args.len() < 2 {
+            return Err(CellError::Value);
+        }
+        let target = self.eval_expr(&args[0])?.as_number().ok_or(CellError::Value)?;
+        let order = if args.len() == 3 {
+            self.eval_expr(&args[2])?.as_number().unwrap_or(0.0) as i32
+        } else {
+            0
+        };
+
+        let mut nums = Vec::new();
+        if let Ok(coords) = self.extract_range_coords(&args[1]) {
+            for coord in coords {
+                if let Some(n) = self.sheet.get_cell_value(coord).as_number() {
+                    nums.push(n);
+                }
+            }
+        } else {
+            let slice = if args.len() == 3 {
+                &args[1..2]
+            } else {
+                &args[1..]
+            };
+            for arg in slice {
+                if let Ok(v) = self.eval_expr(arg) {
+                    if let Some(n) = v.as_number() {
+                        nums.push(n);
+                    }
+                }
+            }
+        }
+
+        if !nums.iter().any(|&n| (n - target).abs() < 1e-12) {
+            return Err(CellError::NA);
+        }
+        if order == 0 {
+            nums.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+        } else {
+            nums.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        }
+        for (i, &n) in nums.iter().enumerate() {
+            if (n - target).abs() < 1e-12 {
+                return Ok(CellValue::Number((i + 1) as f64));
+            }
+        }
+        Err(CellError::NA)
     }
 }
 
