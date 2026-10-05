@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.jericho.spreadsheet</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Jericho Spreadsheet</name>
+  <summary>Fast, lightweight, professional spreadsheet application with native Excel compatibility</summary>
+  <description>
+    <p>
+      Jericho Spreadsheet is an original, ultra-optimized spreadsheet application built from scratch in Rust.
+      It features a 125+ Excel function formula evaluation engine (financial modeling, statistics, multi-criteria lookup, math),
+      sparse memory model (&lt; 35 MB RAM), 60 FPS virtualized grid, and native .xlsx and .csv compatibility.
+    </p>
+  </description>
+  <launchable type="desktop-id">jericho-spreadsheet.desktop</launchable>
+  <provides>
+    <mediatype>application/vnd.openxmlformats-officedocument.spreadsheetml.sheet</mediatype>
+    <mediatype>text/csv</mediatype>
+  </provides>
+  <categories>
+    <category>Office</category>
+    <category>Spreadsheet</category>
+  </categories>
+</component>

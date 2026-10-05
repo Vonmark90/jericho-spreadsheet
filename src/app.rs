@@ -34,9 +34,32 @@ impl Default for JerichoApp {
 }
 
 impl JerichoApp {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, initial_file: Option<String>) -> Self {
         Self::configure_fonts(&cc.egui_ctx);
-        Self::default()
+        let mut app = Self::default();
+        if let Some(path_str) = initial_file {
+            let path = std::path::Path::new(&path_str);
+            if path.exists() {
+                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+                if ext == "csv" {
+                    if let Ok(sheet) = crate::io::csv::import_csv(path) {
+                        let mut wb = Workbook {
+                            sheets: vec![sheet],
+                            active_sheet_index: 0,
+                            file_path: Some(path_str),
+                            is_dirty: false,
+                        };
+                        recalculate_sheet(wb.active_sheet_mut());
+                        app.workbook = wb;
+                    }
+                } else if let Ok(mut wb) = crate::io::xlsx::load_xlsx(path) {
+                    wb.file_path = Some(path_str);
+                    recalculate_sheet(wb.active_sheet_mut());
+                    app.workbook = wb;
+                }
+            }
+        }
+        app
     }
 
     pub fn configure_fonts(ctx: &Context) {

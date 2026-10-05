@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Jericho Spreadsheet
+GenericName=Spreadsheet Application
+Comment=Fast, lightweight, professional spreadsheet application with native Excel compatibility
+Exec=jericho_spreadsheet %F
+Icon=jericho-spreadsheet
+Terminal=false
+Categories=Office;Spreadsheet;Finance;
+MimeType=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;application/vnd.ms-excel;text/csv;application/csv;text/tab-separated-values;
+Keywords=excel;calc;spreadsheet;table;office;finance;accounting;csv;xlsx;
+StartupNotify=true
+StartupWMClass=jericho_spreadsheet

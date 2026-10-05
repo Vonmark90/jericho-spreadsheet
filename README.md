@@ -146,7 +146,7 @@ cargo build --release
 ```
 The compiled executable will be located at `target/release/jericho_spreadsheet`.
 
-### Packaging as macOS Desktop Application (.app)
+### 🍎 Packaging as macOS Desktop Application (.app)
 Package the application with custom Retina icon and metadata into `Jericho Spreadsheet.app` and install directly to the Desktop:
 ```bash
 ./scripts/build_app_bundle.sh
@@ -155,3 +155,46 @@ Or open the desktop application directly:
 ```bash
 open "/Users/markrsadler/Desktop/Jericho Spreadsheet.app"
 ```
+
+### 🐧 Building and Packaging for Linux (Ubuntu, Debian, Fedora, Arch)
+
+#### Linux Build Dependencies
+On Ubuntu/Debian/Mint/Pop!_OS:
+```bash
+sudo apt update && sudo apt install -y pkg-config libx11-dev libxcursor-dev \
+    libxrandr-dev libxi-dev libxinerama-dev libxkbcommon-dev libwayland-dev \
+    libgl1-mesa-dev libegl1-mesa-dev libfontconfig1-dev dpkg-dev
+```
+
+On Fedora/RHEL:
+```bash
+sudo dnf install -y pkgconfig libX11-devel libXcursor-devel libXrandr-devel \
+    libXi-devel libXinerama-devel libxkbcommon-devel wayland-devel mesa-libGL-devel \
+    mesa-libEGL-devel fontconfig-devel
+```
+
+On Arch Linux:
+```bash
+sudo pacman -S --needed pkgconf libx11 libxcursor libxrandr libxi libxinerama \
+    libxkbcommon wayland mesa fontconfig
+```
+
+#### Packaging Linux Distribution Tarball
+Generates `jericho-spreadsheet-0.2.0-linux-x86_64.tar.gz` with complete XDG desktop launcher, AppStream metadata, Hicolor 256x256 / 512x512 icons, and single-command `./install.sh`:
+```bash
+./scripts/build_linux_package.sh
+```
+
+#### Packaging Debian / Ubuntu `.deb` Package
+Generates a standard Debian package ready for `apt` or `dpkg`:
+```bash
+./scripts/build_deb.sh
+sudo dpkg -i target/dist/jericho-spreadsheet_0.2.0_amd64.deb
+```
+
+#### Building Linux Packages via Docker (from any host OS)
+Build, test, and extract native Linux binaries without installing Linux build toolchains:
+```bash
+./scripts/build_linux_in_docker.sh
+```
+Artifacts are automatically exported to `target/linux-dist/`.

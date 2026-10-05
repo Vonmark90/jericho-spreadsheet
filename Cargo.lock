@@ -1690,6 +1690,7 @@ dependencies = [
  "csv",
  "eframe",
  "egui",
+ "image",
  "rfd",
  "rust_xlsxwriter",
  "serde",

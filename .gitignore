@@ -3,4 +3,6 @@
 *.swp
 *.zip
 *.dmg
+*.deb
+*.tar.gz
 dist/

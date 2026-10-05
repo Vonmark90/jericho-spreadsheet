@@ -1,0 +1,57 @@
+# Build environment for Jericho Spreadsheet Linux distribution
+FROM rust:1-bookworm AS builder
+
+# Install system dependencies required for eframe / winit / Wayland / X11 / OpenGL / Fontconfig
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config \
+    libx11-dev \
+    libxcursor-dev \
+    libxrandr-dev \
+    libxi-dev \
+    libxinerama-dev \
+    libxkbcommon-dev \
+    libwayland-dev \
+    libgl1-mesa-dev \
+    libegl1-mesa-dev \
+    libfontconfig1-dev \
+    dpkg-dev \
+    tar \
+    gzip \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Cache dependency builds
+COPY Cargo.toml Cargo.lock ./
+# Create dummy main to compile dependencies first
+RUN mkdir -p src && echo "fn main() {}" > src/main.rs && echo "pub fn lib() {}" > src/lib.rs
+RUN cargo build --release || true
+RUN rm -rf src
+
+# Copy real source code and assets
+COPY src ./src
+COPY tests ./tests
+COPY assets ./assets
+COPY scripts ./scripts
+COPY README.md ./
+
+# Re-touch main.rs to force cargo to build our real code
+RUN touch src/main.rs src/lib.rs
+
+# Run full test suite on Linux
+RUN cargo test --release
+
+# Build optimized release binary
+RUN cargo build --release
+
+# Package Linux tarball and Debian .deb package
+RUN chmod +x scripts/*.sh && \
+    scripts/build_linux_package.sh && \
+    scripts/build_deb.sh
+
+# Artifact export stage
+FROM scratch AS artifacts
+COPY --from=builder /app/target/dist/*.tar.gz /
+COPY --from=builder /app/target/dist/*.deb /
+COPY --from=builder /app/target/release/jericho_spreadsheet /
